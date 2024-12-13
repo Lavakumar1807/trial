@@ -6,8 +6,181 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+/*---------------Frame work Selection----------------*/
+.frameworkSelection{
+   width: 100%;
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   flex-direction: column;
+   text-align: center; 
+   padding: 20px;
+}
+.frameworkSelection select{
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  margin-top: 10px;
+  cursor: pointer;
+}
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+/*---------------Frame work Editor---------------------*/
+.frameworkEditor {
+  width:100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100vh;
+  
+}
+.menu{
+  width: 20%;
+  height:100vh;
+  background-color:  #04305f;
+  height:100vh;
+  padding:10px;
+  box-sizing: border-box;
+}
+
+.fileSelection{
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border-radius:  5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+/*---------------Delete File Button-----------------*/
+#deleteFileBtn{
+   border:none;
+   background-color: rgb(224, 106, 106);
+   border-radius: 3px;
+   padding:5px;
+   box-sizing: border-box;
+   cursor:pointer;
+   letter-spacing: 1px;
+}
+#deleteFileBtn:hover{
+   background-color: rgb(198, 35, 35);
+}
+
+/*----------------Editor---------------------*/
+.editor{
+  width:80%;
+  height:100vh;
+  position: relative;
+}
+
+/*---------------Add File Button-------------*/
+.addFile{
+   display: flex;
+   align-items: center;
+   justify-content: space-around;
+   flex-wrap: wrap;
+   gap:10px;
+}
+
+.addFile input{
+   padding:5px;
+   border-style: none;
+   border-radius: 5px;
+   font-size: 17px;
+   background-color: gray;
+}
+
+#addFileBtn{
+   border-style: none;
+   padding:5px;
+   font-family: monospace;
+   font-size: 17px;
+   cursor: pointer;
+   border-radius: 5px;
+   background-color: #587cca;
+}
+
+#addFileBtn:hover{
+   background-color: #264fa7;
+}
+
+/*----------------Extensions List--------------*/
+.extensions{
+  color: black;
+  width:100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-direction: column;
+  border:1.5px solid gray;
+  border-radius: 10px;
+  padding:5px;
+  box-sizing: border-box;
+  margin-top: 20px;
+  font-family: monospace;
+}
+
+.extensionsList{
+  width:100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  padding:5px;
+  box-sizing: border-box;
+}
+
+.extension{
+   color:white;
+   font-size: 15px;
+   background-color: rgb(66, 64, 64);
+   border-radius: 4px;
+   padding:5px;
+   box-sizing: border-box;
+}
+/*-----------------Save file---------------*/
+.saved{
+  color:black;
+  position:absolute;
+  top:0;
+  right: 0;
+  margin:10px;
+  padding:10px;
+  box-sizing: border-box;
+  background: radial-gradient(circle,rgb(106, 227, 106),rgb(8, 119, 8));
+  z-index: 1;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+.saved span{
+  font-size: 25px;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+.unsaved{
+  display: none;
+}
+#saveBtn{
+   border-style: none;
+   background-color: #264fa7;
+   padding:10px;
+   box-sizing: border-box;
+   font-family: monospace;
+   font-size: 18px;
+   cursor:pointer;
+   position: absolute;
+   bottom:0;
+   right:0;
+   margin:25px;
+   border-radius: 5px;
+}
+#saveBtn:hover{
+  background-color: #587cca;
 }
