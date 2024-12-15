@@ -28,6 +28,7 @@ function FrameworkSelection() {
     const navigation = (framework)=>{
         if(foldercreated.current){
             navigate(`editor/${framework}/${folder.current}`);
+            
         }
         else{
             console.log("No folder created");
