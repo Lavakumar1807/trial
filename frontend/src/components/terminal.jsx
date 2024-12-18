@@ -14,6 +14,7 @@ const Terminal = () => {
         isRendered.current = true;
         const term = new XTerminal({
             rows: 20,
+            columns: 20,
         });
         term.open(terminalRef.current);
 
@@ -26,7 +27,7 @@ const Terminal = () => {
         })
     }, []);
 
-    return <div ref={terminalRef} id="terminal" />
+    return <div width="100%" ref={terminalRef} id="terminal" />
 }
 
 export default Terminal;
