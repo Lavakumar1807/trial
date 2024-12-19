@@ -19,6 +19,11 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+app.use((req, res, next) => {
+  res.setHeader("X-Frame-Options", "ALLOW-FROM http://localhost:3000/editor/cpp/Code1");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
+});
 const PORT = process.env.PORT || 5000;
 
 // Middlewares
@@ -45,6 +50,13 @@ var ptyProcess = pty.spawn(shell, [], {
 ptyProcess.onData((data) => {
   io.emit("terminal:data", data);
   console.log(data);
+
+  // Check if data contains the "http://" or "https://" URL
+  const urlMatch = data.match(/(http:\/\/localhost:\d+|https:\/\/localhost:\d+)/);
+  if (urlMatch) {
+    const url = urlMatch[0];
+    io.emit("dev-url", url); // Send the URL to the frontend
+  }
 });
 
 io.on("connection", (socket) => {
@@ -66,6 +78,107 @@ io.on("connection", (socket) => {
     ptyProcess.write(data);
   });
 });
+
+// io.on("connection", (socket) => {
+//   console.log("A user connected:", socket.id);
+
+  // socket.on("run-react-app", () => {
+  //   const reactAppPath = path.join(__dirname, "Code1");
+  //   console.log("Starting React app in:", reactAppPath);
+
+  //   const reactProcess = spawn("npm", ["start"], {
+  //     cwd: reactAppPath,
+  //     shell: true,
+  //   });
+  //   reactProcess.stdout.on("data", (data) => {
+  //     console.log(`React stdout: ${data}`);
+  //     // Send server URL back to the frontend
+  //     const output = data.toString();
+  //     const match = output.match(/Local:\s*(http:\/\/localhost:\d+)/);
+  //     if (match) {
+  //       const reactURL = match[1];
+  //       socket.emit("react-app-started", reactURL);
+  //     }
+  //   });
+
+  //   reactProcess.stderr.on("data", (data) => {
+  //     console.error(`React stderr: ${data}`);
+  //   });
+  //   reactProcess.on("close", (code) => {
+  //     console.log(`React process exited with code ${code}`);
+  //   });
+  // });
+
+
+
+// io.on("connection", (socket) => {
+//   socket.on("run-react-app", () => {
+//     const reactAppPath = path.join(__dirname, "Code1");
+//     exec("npm start", { cwd: reactAppPath }, (error) => {
+//       if (error) {
+//         console.error("Error starting React app:", error);
+//       }
+//     });
+
+//     // Send the React app URL back to the frontend
+//     const appUrl = "http://localhost:3000"; // Adjust the port as needed
+//     socket.emit("react-app-started", appUrl);
+//   });
+// });
+
+
+//   socket.on("update-frameworks", (frameworks) => {
+//     io.emit("frameworks-updated", frameworks);
+//   });
+
+//   socket.on("code-updated", (updatedFile) => {
+//     io.emit("file-updated", updatedFile);
+//   });
+
+//   socket.on("disconnect", () => {
+//     console.log("A user disconnected:", socket.id);
+//   });
+
+//   socket.on("terminal:write", (data) => {
+//     ptyProcess.write(data);
+//   });
+// });
+
+
+
+// Send terminal output to the client
+// ptyProcess.onData((data) => {
+//   io.emit("terminal:data", data);
+// });
+
+
+// io.on("connection", (socket) => {
+//   console.log("A user connected:", socket.id);
+
+//   // Listen for terminal input from the client
+//   socket.on("terminal:write", (data) => {
+//     ptyProcess.write(data);
+//   });
+
+  
+//   // Handle React app start
+//   socket.on("run-react-app", () => {
+//     const reactAppPath = path.join(__dirname, "Code1");
+//     exec("npm start", { cwd: reactAppPath }, (error) => {
+//       if (error) {
+//         console.error("Error starting React app:", error);
+//         socket.emit("react-app-error", "Failed to start React app.");
+//       } else {
+//         const appUrl = "http://localhost:4000"; // Adjust port as needed
+//         socket.emit("react-app-started", appUrl);
+//       }
+//     });
+//   });
+
+//   socket.on("disconnect", () => {
+//     console.log("A user disconnected:", socket.id);
+//   });
+// });
 // app.post("/runFile", async (req, res) => {
 
 // try {
@@ -897,6 +1010,71 @@ app.post("/runFiles", async (req, res) => {
   }
 });
 
+// app.post("/createFolder", (req, res) => {
+//   const { folderName, files } = req.body;
+
+//   if (!folderName || !files || !Array.isArray(files)) {
+//     return res.status(400).json({ error: "Invalid request data" });
+//   }
+
+//   // Define the folder path
+//   const folderPath = path.join(__dirname, folderName);
+
+//   // Create the folder if it doesn't exist
+//   if (!fs.existsSync(folderPath)) {
+//     fs.mkdirSync(folderPath, { recursive: true });
+//   }
+
+//   // Write each file in the specified folder
+//   files.forEach((file) => {
+//     const filePath = path.join(__dirname, file.key);
+//     fs.writeFileSync(filePath, file.content || ""); // Use empty content if none provided
+//   });
+
+//   res.status(200).json({ message: "Folder and files created successfully" });
+// });
+
+
+app.post("/createFolderFromS3", async (req, res) => {
+  const { folderName, files } = req.body; // `files` is an array of file keys
+
+  if (!folderName || !Array.isArray(files) || files.length === 0) {
+    return res.status(400).json({ error: "Folder name and files are required." });
+  }
+
+  const folderPath = path.join(__dirname, folderName);
+
+  try {
+    // Step 1: Create the folder dynamically
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath);
+    }
+
+    // Step 2: Fetch file contents from S3 and write them to the folder
+    for (const fileKey of files) {
+      try {
+        const params = { Bucket: BUCKET_NAME, Key: fileKey };
+        const data = await s3Client.getObject(params).promise();
+
+        // Write the file to the folder
+        const filePath = path.join(folderPath, path.basename(fileKey));
+        fs.writeFileSync(filePath, data.Body.toString("utf-8"));
+
+        console.log(`File created: ${filePath}`);
+      } catch (error) {
+        console.error(`Error fetching file '${fileKey}':`, error);
+      }
+    }
+
+    res.status(200).json({
+      message: `Folder '${folderName}' created with files from S3.`,
+    });
+  } catch (error) {
+    console.error("Error creating folder or fetching files:", error);
+    res.status(500).json({ error: "Failed to create folder or fetch files." });
+  }
+});
+
 
 
 app.post("/output", (req, res) => {
@@ -1013,27 +1191,114 @@ app.post("/newfolder/:frameworkname", async (req, res) => {
 });
 
 // Code Updation
+// app.put("/codeUpdate", async (req, res) => {
+//   const { fileKey, newCode } = req.body;
+//   if (!fileKey) {
+//     return res.status(400).json({ error: "File key is required." });
+//   }
+//   try {
+//     const newParams = {
+//       Bucket: BUCKET_NAME,
+//       Key: fileKey,
+//       Body: newCode,
+//     };
+
+//     const response = await s3Client.putObject(newParams).promise();
+//     res.send(200, response);
+//   } catch (error) {
+//     console.error("Error in pushing code to file", error);
+//     res.send(500, "Error in pushing code to file");
+//   }
+// });
+
 app.put("/codeUpdate", async (req, res) => {
   const { fileKey, newCode } = req.body;
-  if (!fileKey) {
-    return res.status(400).json({ error: "File key is required." });
+
+  if (!fileKey || !newCode) {
+    return res.status(400).json({ error: "File key and new code are required." });
   }
+
   try {
-    const newParams = {
+    // Update the file in the cloud storage
+    const s3Params = {
       Bucket: BUCKET_NAME,
       Key: fileKey,
       Body: newCode,
     };
+    const s3Response = await s3Client.putObject(s3Params).promise();
 
-    const response = await s3Client.putObject(newParams).promise();
-    res.send(200, response);
+    // Update the local file system
+    const localFilePath = path.join(__dirname, "Code1", path.basename(fileKey));
+    fs.writeFileSync(localFilePath, newCode, "utf-8");
+
+    res.status(200).json({ message: "File updated successfully", s3Response });
   } catch (error) {
-    console.error("Error in pushing code to file", error);
-    res.send(500, "Error in pushing code to file");
+    console.error("Error in updating code:", error);
+    res.status(500).send("Error in updating code");
   }
 });
 
+
 // Add new file
+// app.post("/addFile/:framework/:folder/:filename", async (req, res) => {
+//   const newFileName = req.params.filename;
+//   const frameworkname = req.params.framework;
+//   const foldername = req.params.folder;
+
+//   if (newFileName) {
+//     const dotIndex = newFileName.lastIndexOf(".");
+//     const extension = newFileName.slice(dotIndex + 1);
+
+//     if (dotIndex < newFileName.length && dotIndex > 0) {
+//       try {
+//         const fileData = await s3Client
+//           .listObjectsV2({
+//             Bucket: BUCKET_NAME,
+//             Prefix: `base/${frameworkname}/`,
+        //   })
+        //   .promise();
+        // let copyFileContent;
+
+        // for (let file of fileData.Contents) {
+        //   const key = file.Key;
+        //   const ext = key.slice(key.lastIndexOf(".") + 1);
+
+        //   if (ext == extension) {
+        //     const params = {
+        //       Bucket: BUCKET_NAME,
+        //       Key: key,
+        //     };
+        //     const data = await s3Client.getObject(params).promise();
+        //     copyFileContent = data.Body.toString("utf-8");
+        //     break;
+        //   }
+        // }
+        // if (copyFileContent) {
+        //   const newParams = {
+        //     Bucket: BUCKET_NAME,
+        //     Key: `${foldername}/${newFileName}`,
+        //     Body: copyFileContent,
+        //   };
+
+        //   await s3Client.putObject(newParams).promise();
+        //   res.send(200, "File added Successfully");
+        // } else {
+        //   res.send("Invalid");
+//         }
+//       } catch (error) {
+//         console.error("Error in adding file to the folder : ", error);
+//         res.send(500, "Error in adding new file ");
+//       }
+//     } else {
+//       res.send("Invalid");
+//     }
+//   } else {
+//     console.log("Filename is not defined");
+//   }
+// });
+
+
+
 app.post("/addFile/:framework/:folder/:filename", async (req, res) => {
   const newFileName = req.params.filename;
   const frameworkname = req.params.framework;
@@ -1045,19 +1310,21 @@ app.post("/addFile/:framework/:folder/:filename", async (req, res) => {
 
     if (dotIndex < newFileName.length && dotIndex > 0) {
       try {
+        // Fetch content from cloud storage
         const fileData = await s3Client
           .listObjectsV2({
             Bucket: BUCKET_NAME,
             Prefix: `base/${frameworkname}/`,
           })
           .promise();
+
         let copyFileContent;
 
         for (let file of fileData.Contents) {
           const key = file.Key;
           const ext = key.slice(key.lastIndexOf(".") + 1);
 
-          if (ext == extension) {
+          if (ext === extension) {
             const params = {
               Bucket: BUCKET_NAME,
               Key: key,
@@ -1067,29 +1334,56 @@ app.post("/addFile/:framework/:folder/:filename", async (req, res) => {
             break;
           }
         }
-        if (copyFileContent) {
-          const newParams = {
-            Bucket: BUCKET_NAME,
-            Key: `${foldername}/${newFileName}`,
-            Body: copyFileContent,
-          };
 
-          await s3Client.putObject(newParams).promise();
-          res.send(200, "File added Successfully");
-        } else {
-          res.send("Invalid");
+        if (!copyFileContent) {
+          console.error("No content found for the file.");
+          return res.status(400).send("Content not found for the file.");
         }
+
+        // Upload the file to cloud storage
+        const newParams = {
+          Bucket: BUCKET_NAME,
+          Key: `${foldername}/${newFileName}`,
+          Body: copyFileContent,
+        };
+        await s3Client.putObject(newParams).promise();
+
+        // Save the file locally in the backend's Code1 folder
+        const localDirectory = path.join(__dirname, "Code1");
+        console.log(`Local directory path: ${localDirectory}`);
+
+        if (!fs.existsSync(localDirectory)) {
+          console.log("Code1 directory does not exist. Creating it...");
+          fs.mkdirSync(localDirectory, { recursive: true });
+        } else {
+          console.log("Code1 directory already exists.");
+        }
+
+        const localFilePath = path.join(localDirectory, newFileName);
+        console.log(`Writing file to: ${localFilePath}`);
+
+        try {
+          fs.writeFileSync(localFilePath, copyFileContent, "utf-8");
+          console.log(`File ${newFileName} successfully written to Code1 folder.`);
+        } catch (err) {
+          console.error(`Failed to write file ${newFileName}:`, err);
+          return res.status(500).send("Failed to write file locally.");
+        }
+
+        res.status(200).send("File added successfully");
       } catch (error) {
-        console.error("Error in adding file to the folder : ", error);
-        res.send(500, "Error in adding new file ");
+        console.error("Error in adding file to the folder:", error);
+        res.status(500).send("Error in adding new file");
       }
     } else {
-      res.send("Invalid");
+      res.status(400).send("Invalid filename");
     }
   } else {
     console.log("Filename is not defined");
+    res.status(400).send("Filename is not defined");
   }
 });
+
 
 // Delete File
 app.delete("/deleteFile", async (req, res) => {

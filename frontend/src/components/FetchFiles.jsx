@@ -16,8 +16,41 @@ const FetchFiles = () => {
   const [extensions, setExtensions] = useState([]);
   const [saved, setSaved] = useState(false);
   const [output, setOutput] = useState(null);
+  const [iframeSrc, setIframeSrc] = useState("");
+
 
   const navigate = useNavigate();
+
+  const updateIframeSrc = (url) => {
+    setIframeSrc(url);
+  };
+
+  const handleCreateFolderS3 = async () => {
+    const folderName = "Code1";
+    const fileKeys = files.map((file) => file.key);
+    // if (!folderName || !fileKeys.trim()) {
+    //   alert("Please enter both folder name and file keys.");
+    //   return;
+    // }
+
+    //const filesArray = fileKeys.split(",").map((key) => key.trim()); // Convert input to array
+
+    try {
+      const response = await axios.post("http://localhost:5000/createFolderFromS3", {
+        folderName,
+        files: fileKeys,
+      });
+
+     // setResponseMessage(response.data.message);
+    } catch (error) {
+      console.error("Error creating folder:", error);
+     // setResponseMessage(
+     //   error.response?.data?.error || "Failed to create folder."
+     // );
+    }
+  };
+
+
 
   // fetch files in the folder
   const fetchFiles = async () => {
@@ -359,44 +392,44 @@ const FetchFiles = () => {
 
 
 
-// const handleRunCode = async () => {
-//   const reactAppContent = `
-// import React from 'react';
-// import ReactDOM from 'react-dom/client';
+const handleRunCode = async () => {
+  const reactAppContent = `
+import React from 'react';
+import ReactDOM from 'react-dom/client';
 
-// const App = () => (
-//   <div>
-//     <h1>Hello, React!</h1>
-//     <p>This is a React app running dynamically.</p>
-//   </div>
-// );
+const App = () => (
+  <div>
+    <h1>Hello, React!</h1>
+    <p>This is a React app running dynamically.</p>
+  </div>
+);
 
-// const root = ReactDOM.createRoot(document.getElementById('root'));
-// root.render(<App />);
-// `;
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+`;
 
-//   const files = [
-//     { name: "ReactApp/src/main.js", content: reactAppContent },
-//     { name: "ReactApp/index.html", content: "<div id='root'></div>" },
-//   ];
-//   const mainFile = "ReactApp/src/main.js";
+  const files = [
+    { name: "ReactApp/src/main.js", content: reactAppContent },
+    { name: "ReactApp/index.html", content: "<div id='root'></div>" },
+  ];
+  const mainFile = "ReactApp/src/main.js";
 
-//   try {
-//     const response = await axios.post("http://localhost:5000/runFiles", {
-//       files,
-//       mainFile,
-//     });
+  try {
+    const response = await axios.post("http://localhost:5000/runFiles", {
+      files,
+      mainFile,
+    });
 
-//     if (response.data.url) {
-//       const iframe = document.querySelector("#output-iframe");
-//       iframe.src = response.data.url;
-//     } else if (response.data.output) {
-//       document.querySelector(".output").innerText = response.data.output;
-//     }
-//   } catch (error) {
-//     console.error("Error:", error.response?.data || error.message);
-//   }
-// };
+    if (response.data.url) {
+      const iframe = document.querySelector("#output-iframe");
+      iframe.src = response.data.url;
+    } else if (response.data.output) {
+      document.querySelector(".output").innerText = response.data.output;
+    }
+  } catch (error) {
+    console.error("Error:", error.response?.data || error.message);
+  }
+};
 
 
 // const handleRunCode = async () => {
@@ -432,62 +465,77 @@ const FetchFiles = () => {
 // };
 
 
-const handleRunCode = async () => {
-  const files = [
-    {
-      name: "src/main.jsx",
-      content: `
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+// const handleRunCode = async () => {
+//   const files = [
+//     {
+//       name: "src/main.jsx",
+//       content: `
+// import React from 'react';
+// import ReactDOM from 'react-dom/client';
 
-const App = () => {
-  return <h1>Hello from React!</h1>;
-};
+// const App = () => {
+//   return <h1>Hello from React!</h1>;
+// };
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
-      `,
-    },
-    { name: "index.html", content: `<div id="root"></div>` },
-    {
-      name: "vite.config.js",
-      content: `
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+// const root = ReactDOM.createRoot(document.getElementById('root'));
+// root.render(<App />);
+//       `,
+//     },
+//     { name: "index.html", content: `<div id="root"></div>` },
+//     {
+//       name: "vite.config.js",
+//       content: `
+// import { defineConfig } from 'vite';
+// import react from '@vitejs/plugin-react';
 
-export default defineConfig({
-  plugins: [react()],
-});
-      `,
-    },
-    { name: "package.json", content: `{"dependencies": {"react": "^18.0.0", "react-dom": "^18.0.0"}}` },
-  ];
-  const mainFile = "src/main.jsx";
+// export default defineConfig({
+//   plugins: [react()],
+// });
+  //     `,
+  //   },
+  //   { name: "package.json", content: `{"dependencies": {"react": "^18.0.0", "react-dom": "^18.0.0"}}` },
+  // ];
+  // const mainFile = "src/main.jsx";
 
-  try {
-    const response = await axios.post("http://localhost:5000/runFiles", {
-      files,
-      mainFile,
-    });
+  // try {
+  //   const response = await axios.post("http://localhost:5000/runFiles", {
+  //     files,
+  //     mainFile,
+  //   });
 
-    console.log("Server Response:", response.data);
+  //   console.log("Server Response:", response.data);
 
-    if (response.data.url) {
-      // Load the React app URL into the iframe
-      const iframe = document.querySelector("#output-iframe");
-      iframe.src = response.data.url;
-      document.querySelector(".output").innerText = `React app running at ${response.data.url}`;
-    } else {
-      document.querySelector(".output").innerText = response.data.output;
-    }
-  } catch (error) {
-    console.error("Error:", error.response?.data || error.message);
+  //   if (response.data.url) {
+  //     // Load the React app URL into the iframe
+  //     const iframe = document.querySelector("#output-iframe");
+  //     iframe.src = response.data.url;
+  //     document.querySelector(".output").innerText = `React app running at ${response.data.url}`;
+//     } else {
+//       document.querySelector(".output").innerText = response.data.output;
+//     }
+//   } catch (error) {
+//     console.error("Error:", error.response?.data || error.message);
 
-    // Display error message in output div
-    const errorMessage = error.response?.data?.error || "Execution Failed";
-    document.querySelector(".output").innerText = errorMessage;
-  }
-};
+//     // Display error message in output div
+//     const errorMessage = error.response?.data?.error || "Execution Failed";
+//     document.querySelector(".output").innerText = errorMessage;
+//   }
+// };
+
+// const handleCreateServerFolder = async () => {
+//   try {
+//     const response = await axios.post("http://localhost:5000/createServerFolder", {
+//       files,
+//     });
+//     console.log("folder created successfully");
+//     setCode(response.data);
+//   } catch (error) {
+//     console.error("Error fetching file content:", error);
+//   }
+// };
+
+// handleCreateServerFolder();
+
 
 
   return (
@@ -506,7 +554,7 @@ export default defineConfig({
                 style={{
                   backgroundColor: selectedFile === file.key ? "#0d6096" : "",
                 }}
-                onClick={() => handleFileSelect(file.key)}
+                onClick={() => {handleFileSelect(file.key); console.log(file.key);}}
               >
                 {file.key}
                 <button
@@ -576,11 +624,13 @@ export default defineConfig({
           </button>
         </div>
         <div className="terminal">
-          <Terminal />
+          <Terminal updateIframeSrc={updateIframeSrc}/>
           <div className="output"></div>
           <iframe
           id="output-iframe"
-            src="/display"
+            // src="/display"
+            //src="http://127.0.0.1:7000/"
+            src={iframeSrc}
             title="Output Display"
             style={{
               width: "100%",
@@ -591,7 +641,7 @@ export default defineConfig({
           >
             output
           </iframe>
-          <p>
+          {/* <p>
             Want to see it in a new window?{" "}
            
             <Link
@@ -601,7 +651,8 @@ export default defineConfig({
               Open /display
             </Link>
            
-          </p>
+          </p> */}
+          <p><a href="http://127.0.0.1:8080/something.html" >Open in new window</a></p>
         </div>
       </div>
     </div>
