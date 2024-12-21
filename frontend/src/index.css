@@ -94,6 +94,8 @@ body {
 .terminal{
   flex: 1;
 }
+
+
 /*---------------Add File Button-------------*/
 .addFile{
    display: flex;

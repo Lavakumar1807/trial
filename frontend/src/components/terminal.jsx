@@ -1,155 +1,82 @@
-import { Terminal as XTerminal} from '@xterm/xterm';
-import { useEffect , useRef } from 'react';
-import '@xterm/xterm/css/xterm.css'
-//import socket from '../socket'
-import { io } from 'socket.io-client';
+import { Terminal as XTerminal } from "@xterm/xterm";
+import { useEffect, useRef, useState } from "react";
+import "@xterm/xterm/css/xterm.css";
+import { io } from "socket.io-client";
+
 const socket = io("http://localhost:5000");
+
 const Terminal = () => {
+  const terminalRef = useRef();
+  const isRendered = useRef(false);
+  const [iframeSrc, setIframeSrc] = useState("");
 
-    const terminalRef = useRef();
-    const isRendered = useRef(false);
+  useEffect(() => {
+    if (isRendered.current) return;
+    isRendered.current = true;
 
-    useEffect(() => {
-        if(isRendered.current) return;
-        isRendered.current = true;
-        const term = new XTerminal({
-            rows: 20,
-            columns: 20,
-        });
-        term.open(terminalRef.current);
+    const term = new XTerminal({
+      rows: 30,
+      columns: 20,
+    });
+    term.open(terminalRef.current);
 
-        term.onData(data => {
-            socket.emit('terminal:write', data);
-        })
+    term.onData((data) => {
+      socket.emit("terminal:write", data);
+    });
 
-        socket.on("terminal:data", (data) => {
-            term.write(data);
-        })
+    socket.on("terminal:data", (data) => {
+      console.log(data);
+      term.write(data);
 
-        socket.on("dev-url", (url) => {
-            //setDevUrl(url);
-            console.log("dev-url", url);
-          });
-      
-    }, []);
+      // Extract the URL if it exists in the data
+      const urlMatch = data.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        const extractedUrl = urlMatch[0]; // Extract the first matching URL
+        console.log("the extracted url is ", extractedUrl);
+        setIframeSrc(extractedUrl);
+      }
+    });
 
-    return <div width="100%" ref={terminalRef} id="terminal" />
-}
+    return () => {
+      term.dispose();
+      socket.off("terminal:data");
+    };
+  }, []);
+
+  return (
+    <>
+      <div style={{ display: "flex" }}>
+        <div
+          ref={terminalRef}
+          id="terminal"
+          style={{
+            flex: 3,
+            width: "100%",
+            height: "300px",
+            border: "1px solid black",
+          }}
+        />
+        <div style={{ flex: "1",}}>
+          <p>WebView</p>
+          {iframeSrc && (
+            <iframe
+              src={iframeSrc}
+              title="dynamic content frame"
+              style={{
+                width: "100%",
+                height: "500px",
+                border: "none",
+                marginTop: "20px",
+              }}
+            />
+          )}
+        </div>
+      </div>
+      <a href={iframeSrc} target="_blank">
+        Open in new page
+      </a>
+    </>
+  );
+};
 
 export default Terminal;
-
-// import { Terminal as XTerminal } from "@xterm/xterm";
-// import { useEffect, useRef } from "react";
-// import "@xterm/xterm/css/xterm.css";
-// import { io } from "socket.io-client";
-
-// const socket = io("http://localhost:5000");
-
-// const Terminal = ({ updateIframeSrc }) => {
-//   const terminalRef = useRef();
-//   const isRendered = useRef(false);
-
-//   useEffect(() => {
-//     if (isRendered.current) return;
-//     isRendered.current = true;
-
-//     const term = new XTerminal({
-//       rows: 20,
-//       columns: 20,
-//     });
-//     term.open(terminalRef.current);
-
-//     term.onData((data) => {
-//       socket.emit("terminal:write", data);
-//     });
-
-//     socket.on("terminal:data", (data) => {
-//       term.write(data);
-//     });
-
-//     // Update the iframe src when the React app starts
-//     socket.on("react-app-started", (url) => {
-//       console.log("React app started at:", url);
-//       updateIframeSrc(url);
-//     });
-
-//     return () => {
-//       socket.off("terminal:data");
-//       socket.off("react-app-started");
-//     };
-//   }, [updateIframeSrc]);
-
-//   const handleRunReactApp = () => {
-//     socket.emit("run-react-app");
-//   };
-
-//   return (
-//     <div>
-//       <h2>Terminal</h2>
-//       <div
-//         ref={terminalRef}
-//         id="terminal"
-//         style={{ width: "100%", height: "300px", border: "1px solid #ccc" }}
-//       ></div>
-//       <button onClick={handleRunReactApp} style={{ margin: "10px 0" }}>
-//         Run React App
-//       </button>
-//     </div>
-//   );
-// };
-
-// export default Terminal;
-
-
-// import { Terminal as XTerminal } from "@xterm/xterm";
-// import { useEffect, useRef } from "react";
-// import "@xterm/xterm/css/xterm.css";
-// import { io } from "socket.io-client";
-
-// const socket = io("http://localhost:5000");
-
-// const Terminal = ({ updateIframeSrc }) => {
-//   const terminalRef = useRef();
-//   const isRendered = useRef(false);
-
-//   useEffect(() => {
-//     if (isRendered.current) return;
-//     isRendered.current = true;
-
-//     const term = new XTerminal({
-//       rows: 20,
-//       cols: 120,
-//     });
-//     term.open(terminalRef.current);
-
-//     // Listen for terminal output and write to the Xterm instance
-//     socket.on("terminal:data", (data) => {
-//       term.write(data);
-//     });
-
-//     // Send terminal input to the backend
-//     term.onData((data) => {
-//       socket.emit("terminal:write", data);
-//     });
-
-//     // Update iframe when React app starts
-//     socket.on("react-app-started", (url) => {
-//       console.log("React app started at:", url);
-//       updateIframeSrc(url);
-//     });
-
-//     socket.on("react-app-error", (errorMessage) => {
-//       console.error(errorMessage);
-//     });
-
-//     return () => {
-//       socket.off("terminal:data");
-//       socket.off("react-app-started");
-//       socket.off("react-app-error");
-//     };
-//   }, [updateIframeSrc]);
-
-//   return <div ref={terminalRef} id="terminal" style={{ width: "100%", height: "300px" }} />;
-// };
-
-// export default Terminal;
