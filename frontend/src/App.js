@@ -3,6 +3,18 @@ import { BrowserRouter as Router, Route, Routes} from 'react-router-dom';
 import FrameworkSelection from './components/FrameworkSelection';
 import FetchFiles from './components/FetchFiles';
 
+// const resizeObserverLoopErr = (err) => {
+//     if (
+//       err.message ===
+//       "ResizeObserver loop completed with undelivered notifications"
+//     ) {
+//       return;
+//     }
+//     throw err;
+//   };
+  
+//   window.addEventListener("error", resizeObserverLoopErr);
+  
 
 function App() {
     return (

@@ -219,3 +219,21 @@ body {
 #runBtn:hover{
  background-color: #587cca;
 }
+
+#stopBtn{
+  border-style: none;
+  background-color: #264fa7;
+  padding:10px;
+  box-sizing: border-box;
+  font-family: monospace;
+  font-size: 18px;
+  cursor:pointer;
+  position: absolute;
+  bottom:0;
+  right:100px;
+  margin:25px;
+  border-radius: 5px;
+}
+#stopBtn:hover{
+ background-color: #587cca;
+}

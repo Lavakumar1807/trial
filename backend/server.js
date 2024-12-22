@@ -3,7 +3,7 @@ const http = require("http");
 const os = require("os");
 const fs = require("fs");
 const path = require("path");
-const { exec, spawn } = require("child_process");
+const { execSync, exec, spawn } = require("child_process");
 const pty = require("node-pty-prebuilt-multiarch");
 const { Server } = require("socket.io");
 const bodyParser = require("body-parser");
@@ -139,71 +139,160 @@ io.on("connection", (socket) => {
   });
 });
 
+app.post(`/:frameworkname/:selectedFile/:foldername`, async (req, res) => {
+  const framework = req.params.frameworkname;
+  const filename = req.params.selectedFile;
+  const foldername = req.params.foldername;
+  const { hostPort } = req.body;
+  if(framework == "nodejs"){
+    try {
+      const uniqueTag = `node-app-image:${Date.now()}`;
+  
+      console.log("Building Docker image...");
+      execSync(`docker build -t ${uniqueTag} .`, {
+        cwd: path.join(__dirname, foldername),
+        stdio: "inherit",
+      });
+  
+      console.log("Stopping existing container (if any)...");
+      execSync(`docker rm -f node-container || true`, { stdio: "inherit" });
+  
+      console.log("Starting new container...");
+      execSync(
+        `docker run -d -p ${hostPort}:3000 --name node-container ${uniqueTag}`,
+        { stdio: "inherit" }
+      );
+  
+      const appUrl = `http://localhost:${hostPort}`;
+      console.log(`Node.js app deployed at ${appUrl}`);
+      res.json({ url: appUrl });
+    } catch (error) {
+      console.error("Deployment error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  }
+  else if(framework == "python"){
+    try {
+      const uniqueTag = `flask-app-image:${Date.now()}`;
+      const appFolder = path.join(__dirname, foldername);
+  
+      console.log("Building Docker image...");
+      execSync(`docker build -t ${uniqueTag} .`, {
+        cwd: appFolder,
+        stdio: "inherit",
+      });
+  
+      console.log("Stopping existing container (if any)...");
+      execSync(`docker rm -f flask-container || true`, { stdio: "inherit" });
+  
+      console.log("Starting new container...");
+      execSync(
+        `docker run -d -p ${hostPort}:5000 --name flask-container ${uniqueTag}`,
+        { stdio: "inherit" }
+      );
+  
+      const appUrl = `http://localhost:${hostPort}`;
+      console.log(`Flask app deployed at ${appUrl}`);
+      res.json({ url: appUrl });
+    } catch (error) {
+      console.error("Deployment error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  }
+  else if(framework == "reactjs"){
+    try {
+      const uniqueTag = `react-app-image:${Date.now()}`;
+  
+      console.log("Building Docker image...");
+      execSync(`docker build -t ${uniqueTag} .`, {
+        cwd: path.join(__dirname, foldername),
+        stdio: "inherit",
+      });
+  
+      console.log("Stopping existing container (if any)...");
+      execSync(`docker rm -f react-container || true`, { stdio: "inherit" });
+  
+      console.log("Starting new container...");
+      execSync(
+        `docker run -d -p ${hostPort}:3000 --name react-container ${uniqueTag}`,
+        { stdio: "inherit" }
+      );
+  
+      const appUrl = `http://localhost:${hostPort}`;
+      console.log(`React app deployed at ${appUrl}`);
+      res.json({ url: appUrl });
+    } catch (error) {
+      console.error("Deployment error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  }
+  else{
+    try {
+      const folderAbsolutePath = path.join(__dirname, foldername);
+      const filePath = path.join(folderAbsolutePath, filename);
+  
+      if (!filename.endsWith(".cpp")) {
+        return res.status(400).json({ error: "Only .cpp files are allowed." });
+      }
+  
+      const outputFilePath = filePath.replace(".cpp", "");
+  
+      exec(`g++ ${filePath} -o ${outputFilePath} -I${folderAbsolutePath}`, (compileError) => {
+        if (compileError) {
+          return res.status(400).json({ error: `Compilation Error: ${compileError.message}` });
+        }
+  
+        console.log("Compilation successful, running the program...");
+  
+        exec(outputFilePath, { cwd: folderAbsolutePath }, (runError, stdout, stderr) => {
+          if (runError) {
+            return res.status(400).json({ error: `Runtime Error: ${runError.message}` });
+          }
+  
+          res.json({ output: stdout || stderr });
+        });
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "An unexpected error occurred." });
+    }
+  }
+  
+});
 
+app.post("/stop", async (req, res) => {
+  const { hostPort, framework } = req.body;
 
+  try {
+    console.log(`Stopping container for framework ${framework} on port ${hostPort}...`);
 
-// const runCommand = (command) => {
-//   return new Promise((resolve, reject) => {
-//     exec(command, (error, stdout, stderr) => {
-//       if (error) return reject({ error: error.message, stderr });
-//       if (stderr) return reject({ error: stderr });
-//       resolve(stdout);
-//     });
-//   });
-// };
+    let containerName;
+    switch (framework) {
+      case "nodejs":
+        containerName = "node-container";
+        break;
+      case "reactjs":
+        containerName = "react-container";
+        break;
+      case "python":
+        containerName = "flask-container";
+        break;
+      default:
+        return res.status(400).json({ error: "Invalid framework specified." });
+    }
 
-// app.post("/runFile", async (req, res) => {
-//   const fileName = "test.cpp";
-//   const executableName = "test_executable";
+    execSync(`docker rm -f ${containerName} || true`, { stdio: "inherit" });
 
-//   try {
-//     // Step 1: Extract and validate code from request body
-//     const { code } = req.body;
-//     if (!code || typeof code !== "string") {
-//       return res.status(400).json({ error: "Invalid or missing 'code' input." });
-//     }
-
-//     // Step 2: Define file paths
-//     const filePath = path.join(__dirname, fileName);
-//     const executablePath = path.join(__dirname, executableName);
-//      // Step 3: Write the code to a file
-//      await fs.writeFile(filePath, code, "utf8");
-//      console.log("Code successfully written to file:", filePath);
-
-//      // Step 4: Compile the C++ file using g++
-//      try {
-//        await runCommand(`g++ ${filePath} -o ${executablePath}`);
-//        console.log("Compilation successful");
-//      } catch (compilationError) {
-//    console.error("Compilation Error:", compilationError.error || compilationError.stderr);
-//    await fs.unlink(filePath).catch(() => {}); // Cleanup the file
-//    return res.status(400).json({ error: "Compilation failed.", details: compilationError.error || compilationError.stderr });
-//  }
-//   // Step 5: Execute the compiled file
-// let output;
-// try {
-//   output = await runCommand(`./${executableName}`);
-//   console.log("Execution Output:", output);
-// } catch (executionError) {
-//   console.error("Runtime Error:", executionError.error || executionError.stderr);
-//   return res.status(500).json({ error: "Runtime error.", details: executionError.error || executionError.stderr });
-// }
-
-// // Step 6: Cleanup (delete the .cpp file and the executable)
-// await fs.unlink(filePath).catch(() => {});
-// await fs.unlink(executablePath).catch(() => {});
-
-//     // Step 7: Return the output
-//     return res.status(200).json({ message: "Code executed successfully.", output });
-//   } catch (error) {
-//     console.error("Error processing the request:", error);
-//     return res.status(500).json({ error: "Internal server error." });
-//   }
-// });
-
+    console.log(`Container for ${framework} stopped and port ${hostPort} freed.`);
+    res.json({ message: `${framework} app stopped successfully.` });
+  } catch (error) {
+    console.error("Error stopping container:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.post("/createFolderFromS3", async (req, res) => {
-  const { folderName, files } = req.body; 
+  const { folderName, files, framework } = req.body;
 
   if (!folderName || !Array.isArray(files) || files.length === 0) {
     return res.status(400).json({ error: "Folder name and files are required." });
@@ -225,6 +314,91 @@ app.post("/createFolderFromS3", async (req, res) => {
         fs.writeFileSync(filePath, data.Body.toString("utf-8"));
       } catch (error) {
         console.error(`Error fetching file '${fileKey}':`, error);
+      }
+    }
+
+    if (framework && framework.toLowerCase() !== "cpp") {
+      const dockerfilePath = path.join(folderPath, "Dockerfile");
+      let dockerfileContent = "";
+
+      switch (framework.toLowerCase()) {
+        case "nodejs":
+          dockerfileContent = `
+FROM node:16
+
+# Set the working directory
+WORKDIR /app
+
+# Copy package.json and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy the application code
+COPY . .
+
+# Command to run your Node.js application
+CMD [\"node\", \"example.js\"]`;
+          break;
+
+        case "python":
+          dockerfileContent = `
+FROM python:3.9-slim
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the requirements file into the container
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install -r requirements.txt
+
+# Copy the rest of the application code into the container
+COPY . .
+
+# Expose the port that Flask will run on
+EXPOSE 5000
+
+# Run the Flask app
+CMD [\"python\", \"main.py\"]`;
+          break;
+
+        case "reactjs":
+          dockerfileContent = `
+FROM node:16
+
+# Set the working directory
+WORKDIR /app
+
+# Copy package.json and package-lock.json
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy the rest of the application files
+COPY . .
+
+# Build the React app
+RUN npm run build
+
+# Use a lightweight HTTP server for serving the app
+RUN npm install -g serve
+
+# Expose the port the app runs on
+EXPOSE 3000
+
+# Start the app
+CMD [\"serve\", \"-s\", \"build\"]`;
+          break;
+
+        default:
+          console.warn("Unsupported framework specified, no Dockerfile created.");
+          break;
+      }
+
+      if (dockerfileContent) {
+        fs.writeFileSync(dockerfilePath, dockerfileContent);
       }
     }
 

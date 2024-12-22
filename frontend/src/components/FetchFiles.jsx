@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { Editor } from "@monaco-editor/react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import Terminal from "./Terminal";
+import Terminal from "./terminal";
 
 const FetchFiles = () => {
   const { frameworkname, foldername } = useParams();
@@ -15,20 +15,37 @@ const FetchFiles = () => {
   const [newFile, setNewFile] = useState("");
   const [extensions, setExtensions] = useState([]);
   const [saved, setSaved] = useState(false);
-
+  const [iframeSrc, setIframeSrc] = useState("");
+  const [output, setOutput] = useState("");
 
   const navigate = useNavigate();
+
+  const originalConsoleError = console.error;
+
+  const resizeObserverError = () => {
+    console.error = (message, ...args) => {
+      // Filter specific error messages to avoid recursion
+      if (message.includes("ResizeObserver loop limit exceeded")) {
+        return;
+      }
+      // Call the original console.error for other messages
+      originalConsoleError(message, ...args);
+    };
+  };
 
   //creates the files at the server
   const handleCreateFolderS3 = async () => {
     const folderName = foldername;
     const fileKeys = files.map((file) => file.key);
     try {
-      const response = await axios.post("http://localhost:5000/createFolderFromS3", {
-        folderName,
-        files: fileKeys,
-      });
- 
+      const response = await axios.post(
+        "http://localhost:5000/createFolderFromS3",
+        {
+          folderName,
+          files: fileKeys,
+          framework: frameworkname,
+        }
+      );
     } catch (error) {
       console.error("Error creating folder:", error);
     }
@@ -61,6 +78,26 @@ const FetchFiles = () => {
     }
   };
 
+  useEffect(() => {
+    resizeObserverError();
+  
+    // Cleanup: Restore the original console.error on unmount
+    return () => {
+      console.error = originalConsoleError;
+    };
+  }, []);
+  
+  
+  // const resizeObserverError = () => {
+  //   console.error = (message, ...args) => {
+  //     if (message.includes("ResizeObserver loop limit exceeded")) {
+  //       return;
+  //     }
+  //     console.error(message, ...args);
+  //   };
+  // };
+
+  // resizeObserverError();
 
   useEffect(() => {
     fetchFiles();
@@ -139,6 +176,99 @@ const FetchFiles = () => {
   };
 
 
+  
+
+  const handleRunCode = async () => {
+    console.log("Run button clicked");
+    const FileName = selectedFile.split("/").pop();
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/${frameworkname}/${FileName}/${foldername}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            hostPort: 9000,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Deployment failed:", errorData.error);
+        alert(`Deployment failed: ${errorData.error}`);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.url) {
+        console.log(`Deployed ${frameworkname} app URL:`, data.url);
+        setIframeSrc(data.url);
+        //alert(`Your ${framework} app is running at ${data.url}`);
+        return;
+      }
+
+      if (data.output) {
+        const iframe = document.getElementById("outputIframe");
+        iframe.contentDocument.body.innerHTML = `<pre>${data.output}</pre>`;
+        return;
+      }
+    } catch (error) {
+      console.error("Error during deployment/running:", error);
+    }
+  };
+
+  const handleStopCode = async () => {
+    console.log("Stop button clicked");
+
+    try {
+      const response = await fetch("http://localhost:5000/stop", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          hostPort: 9000,
+          framework: frameworkname,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Stopping failed:", errorData.error);
+        alert(`Stopping failed: ${errorData.error}`);
+        return;
+      }
+
+      console.log(`${frameworkname} app stopped successfully`);
+      alert(`${frameworkname} app stopped successfully and the port is freed.`);
+    } catch (error) {
+      console.error("Error during stopping:", error);
+      alert(`Error during stopping: ${error.message}`);
+    }
+  };
+
+  const handleButtonClick = (frameworkName) => {
+    const button = document.getElementById("runBtn");
+  
+    if (frameworkName == "cpp") {
+      handleRunCode();
+    } else {
+      if (button.innerText === "Run") {
+        button.innerText = "Stop";
+        handleRunCode();
+      } else {
+        button.innerText = "Run";
+        handleStopCode();
+      }
+    }
+    return;
+  };
+  
+
   return (
     <div className="frameworkEditor">
       <div className="menu">
@@ -155,7 +285,10 @@ const FetchFiles = () => {
                 style={{
                   backgroundColor: selectedFile === file.key ? "#0d6096" : "",
                 }}
-                onClick={() => {handleFileSelect(file.key); console.log(file.key);}}
+                onClick={() => {
+                  handleFileSelect(file.key);
+                  console.log(file.key);
+                }}
               >
                 {file.key}
                 <button
@@ -217,13 +350,33 @@ const FetchFiles = () => {
             value={code}
             onChange={handleCodeChange}
           />
+          {/* <button id="stopBtn" onClick={handleStopCode}>
+            stop
+          </button> */}
+          <button id="runBtn" onClick={handleButtonClick}>
+            Run
+          </button>
+         
+
           <button id="saveBtn" onClick={handleUpdateCode}>
             Save
           </button>
         </div>
         <div className="terminal">
-          <p>Console</p>
-          <Terminal />
+          <p>Output Section</p>
+          {/* <Terminal /> */}
+          {iframeSrc && (
+            <iframe
+              src={iframeSrc}
+              title="dynamic content frame"
+              style={{
+                width: "100%",
+                height: "500px",
+                border: "none",
+                marginTop: "20px",
+              }}
+            />
+          )}
           <div className="output"></div>
         </div>
       </div>
