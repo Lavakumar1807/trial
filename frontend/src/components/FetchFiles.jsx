@@ -16,7 +16,8 @@ const FetchFiles = () => {
   const [extensions, setExtensions] = useState([]);
   const [saved, setSaved] = useState(false);
   const [iframeSrc, setIframeSrc] = useState("");
-  const [output, setOutput] = useState("");
+  const [textOutput, setTextOutput] = useState("");
+  const [objectData, setObjectData] = useState("");
 
   const navigate = useNavigate();
 
@@ -80,24 +81,20 @@ const FetchFiles = () => {
 
   useEffect(() => {
     resizeObserverError();
-  
+
     // Cleanup: Restore the original console.error on unmount
     return () => {
       console.error = originalConsoleError;
     };
   }, []);
-  
-  
-  // const resizeObserverError = () => {
-  //   console.error = (message, ...args) => {
-  //     if (message.includes("ResizeObserver loop limit exceeded")) {
-  //       return;
-  //     }
-  //     console.error(message, ...args);
-  //   };
-  // };
 
-  // resizeObserverError();
+  useEffect(() => {
+    if (iframeSrc) {
+      const iframe = document.getElementById("outputIframe");
+      iframe.src = iframeSrc; // Ensure the iframe reloads when src changes
+    }
+  }, [iframeSrc]);
+  
 
   useEffect(() => {
     fetchFiles();
@@ -175,16 +172,67 @@ const FetchFiles = () => {
     }
   };
 
+  // const handleRunCode = async () => {
+  //   console.log("Run button clicked");
+  //   const FileName = selectedFile.split("/").pop();
 
-  
+  //   try {
+  //     const response = await fetch(
+  //       `http://localhost:5000/${frameworkname}/${FileName}/${foldername}`,
+  //       {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify({
+  //           hostPort: 9000,
+  //         }),
+  //       }
+  //     );
+
+  //     if (!response.ok) {
+  //       const errorData = await response.json();
+  //       console.error("Deployment failed:", errorData.error);
+  //       alert(`Deployment failed: ${errorData.error}`);
+  //       return;
+  //     }
+
+  //     const data = await response.json();
+  //     if (data.url) {
+  //       console.log(`Deployed ${frameworkname} app URL:`, data.url);
+  //       setIframeSrc(data.url);
+  //       //alert(`Your ${framework} app is running at ${data.url}`);
+  //       return;
+  //     }
+
+  //     if (data.output) {
+  //       // setIframeSrc(null); // Clear the iframe for text output
+  //       // const iframe = document.getElementById("outputIframe");
+  //       // if (iframe && iframe.contentDocument) {
+  //       //   iframe.contentDocument.open();
+  //       //   iframe.contentDocument.write(`<pre>${data.output}</pre>`);
+  //       //   iframe.contentDocument.close();
+  //       // }
+  //       console.log(data.output);
+  //       if (data.output) {
+  //         setIframeSrc(null); // Clear iframe for text output
+  //         setTextOutput(data.output); // Update output text
+  //       }
+  //       // const iframe = document.getElementById("outputIframe");
+  //       // iframe.contentDocument.body.innerHTML = `<pre>${data.output}</pre>`;
+  //       return;
+  //     }
+  //   } catch (error) {
+  //     console.error("Error during deployment/running:", error);
+  //   }
+  // };
 
   const handleRunCode = async () => {
     console.log("Run button clicked");
-    const FileName = selectedFile.split("/").pop();
-
+   
     try {
       const response = await fetch(
-        `http://localhost:5000/${frameworkname}/${FileName}/${foldername}`,
+        `http://localhost:5000/${frameworkname}/${selectedFile}/${foldername}`,
         {
           method: "POST",
           headers: {
@@ -196,28 +244,42 @@ const FetchFiles = () => {
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Deployment failed:", errorData.error);
-        alert(`Deployment failed: ${errorData.error}`);
+        console.error("Deployment failed:", data.output || data.error);
+        //setIframeSrc(null);
+        setObjectData("");
+        setTextOutput(data.output || `Error: ${data.error}`);
         return;
       }
 
-      const data = await response.json();
       if (data.url) {
         console.log(`Deployed ${frameworkname} app URL:`, data.url);
-        setIframeSrc(data.url);
-        //alert(`Your ${framework} app is running at ${data.url}`);
+        setObjectData(data.url);
+        setTextOutput(null);
+        console.log(data.url);
+        console.log(iframeSrc);
         return;
       }
 
       if (data.output) {
-        const iframe = document.getElementById("outputIframe");
-        iframe.contentDocument.body.innerHTML = `<pre>${data.output}</pre>`;
+        console.log("Program output:", data.output);
+        //setIframeSrc(null);
+        setTextOutput(data.output);
         return;
       }
+
+      // Handle unexpected cases
+      console.log("Unexpected response:", data);
+      //setIframeSrc(null); // Clear iframe
+      setObjectData(null);
+      setTextOutput("Unexpected response received.");
     } catch (error) {
       console.error("Error during deployment/running:", error);
+      //setIframeSrc(null); // Clear iframe
+      setObjectData(null);
+      setTextOutput(`Error during deployment/running: ${error.message}`);
     }
   };
 
@@ -253,7 +315,7 @@ const FetchFiles = () => {
 
   const handleButtonClick = (frameworkName) => {
     const button = document.getElementById("runBtn");
-  
+
     if (frameworkName == "cpp") {
       handleRunCode();
     } else {
@@ -267,7 +329,6 @@ const FetchFiles = () => {
     }
     return;
   };
-  
 
   return (
     <div className="frameworkEditor">
@@ -356,7 +417,6 @@ const FetchFiles = () => {
           <button id="runBtn" onClick={handleButtonClick}>
             Run
           </button>
-         
 
           <button id="saveBtn" onClick={handleUpdateCode}>
             Save
@@ -367,6 +427,7 @@ const FetchFiles = () => {
           {/* <Terminal /> */}
           {iframeSrc && (
             <iframe
+              id="outputIframe"
               src={iframeSrc}
               title="dynamic content frame"
               style={{
@@ -377,7 +438,8 @@ const FetchFiles = () => {
               }}
             />
           )}
-          <div className="output"></div>
+          <object data={objectData} width="500" height="500"></object>
+          <div className="output">{textOutput && <pre>{textOutput}</pre>}</div>
         </div>
       </div>
     </div>

@@ -24,10 +24,17 @@ const io = new Server(server, {
 //   res.setHeader("Access-Control-Allow-Origin", "*");
 //   next();
 // });
+app.use((req, res, next) => {
+  res.setHeader("X-Frame-Options", "ALLOWALL"); // Allow all origins
+  res.setHeader("Content-Security-Policy", "frame-ancestors 'self' *");
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 const PORT = process.env.PORT || 5000;
 
 // Middlewares
 app.use(bodyParser.json());
+//app.use(cors({ origin: "*" }));
 app.use(cors());
 
 
@@ -143,6 +150,9 @@ app.post(`/:frameworkname/:selectedFile/:foldername`, async (req, res) => {
   const framework = req.params.frameworkname;
   const filename = req.params.selectedFile;
   const foldername = req.params.foldername;
+  console.log(framework);
+  console.log(filename);
+  console.log(foldername);
   const { hostPort } = req.body;
   if(framework == "nodejs"){
     try {
@@ -227,37 +237,53 @@ app.post(`/:frameworkname/:selectedFile/:foldername`, async (req, res) => {
     }
   }
   else{
-    try {
-      const folderAbsolutePath = path.join(__dirname, foldername);
-      const filePath = path.join(folderAbsolutePath, filename);
+  try {
+    const folderAbsolutePath = path.join(__dirname, foldername);
+    const filePath = path.join(folderAbsolutePath, filename);
   
-      if (!filename.endsWith(".cpp")) {
-        return res.status(400).json({ error: "Only .cpp files are allowed." });
+    if (!filename.endsWith(".cpp")) {
+      return res.status(400).json({
+        output: "Error: Only .cpp files are allowed.",
+        success: false,
+      });
+    }
+  
+    const outputFilePath = filePath.replace(".cpp", ".exe");
+  
+    exec(`g++ ${filePath} -o ${outputFilePath} -I${folderAbsolutePath}`, (compileError) => {
+      if (compileError) {
+        return res.status(400).json({
+          output: `Compilation Error: ${compileError.message}`,
+          success: false,
+        });
       }
   
-      const outputFilePath = filePath.replace(".cpp", "");
+      console.log("Compilation successful, running the program...");
   
-      exec(`g++ ${filePath} -o ${outputFilePath} -I${folderAbsolutePath}`, (compileError) => {
-        if (compileError) {
-          return res.status(400).json({ error: `Compilation Error: ${compileError.message}` });
+      exec(outputFilePath, { cwd: folderAbsolutePath }, (runError, stdout, stderr) => {
+        if (runError) {
+          return res.status(400).json({
+            output: `Runtime Error: ${runError.message}`,
+            success: false,
+          });
         }
   
-        console.log("Compilation successful, running the program...");
-  
-        exec(outputFilePath, { cwd: folderAbsolutePath }, (runError, stdout, stderr) => {
-          if (runError) {
-            return res.status(400).json({ error: `Runtime Error: ${runError.message}` });
-          }
-  
-          res.json({ output: stdout || stderr });
+        res.json({
+          output: stdout || stderr || "Program executed successfully, but no output.",
+          success: true,
         });
       });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "An unexpected error occurred." });
-    }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      output: "An unexpected error occurred.",
+      error: error.message,
+      success: false,
+    });
   }
   
+};
 });
 
 app.post("/stop", async (req, res) => {
