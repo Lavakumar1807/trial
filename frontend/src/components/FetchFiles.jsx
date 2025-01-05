@@ -333,11 +333,15 @@ const FetchFiles = () => {
   return (
     <div className="frameworkEditor">
       <div className="menu">
+      
+        <div className="headername">
         <h3 style={{ color: "white", fontSize: "20px" }}>
           Folder : {foldername.toUpperCase()}
         </h3>
         <hr />
+        </div>
 
+        <div className="fileList">
         <ul style={{ listStyleType: "none", padding: 0 }}>
           {files.map((file) => (
             <li key={file.key}>
@@ -363,9 +367,9 @@ const FetchFiles = () => {
             </li>
           ))}
         </ul>
+        </div>
 
-        <center>
-          <div className="addFile">
+        <div className="addFile">
             <input
               type="text"
               value={newFile}
@@ -379,8 +383,7 @@ const FetchFiles = () => {
             >
               Add
             </button>
-          </div>
-        </center>
+        </div>
 
         <div className="extensions">
           <h2>Extensions : </h2>

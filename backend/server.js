@@ -9,6 +9,9 @@ const { Server } = require("socket.io");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const s3Client = require("./storjClient");
+const connectDB = require("./connectDB");
+const Users  = require("./models/users");
+const {hashPassword,comparePasswords} = require('./hashPassword');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,6 +27,10 @@ const io = new Server(server, {
 //   res.setHeader("Access-Control-Allow-Origin", "*");
 //   next();
 // });
+
+// Connecting with cloud data base for users
+connectDB();
+
 app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "ALLOWALL"); // Allow all origins
   res.setHeader("Content-Security-Policy", "frame-ancestors 'self' *");
@@ -506,14 +513,17 @@ const getFileName = (filename) => {
   let index = file.lastIndexOf("/");
   return file.slice(index + 1);
 };
-// NOTE : When the server restart then copyNumber will be again initialized to 0
-let copyNumber = 0;
-app.post("/newfolder/:frameworkname", async (req, res) => {
-  const framework = req.params.frameworkname;
+
+app.post("/newfolder", async (req, res) => {
+  const { username,frameworkname , foldername} = req.body;
+
   try {
+    const folderData = await s3Client.listObjectsV2({Bucket : BUCKET_NAME , Prefix : foldername + '/' ,Delimiter:'/'}).promise();
+    if(folderData.KeyCount==0){
     const fileData = await s3Client
-      .listObjectsV2({ Bucket: BUCKET_NAME, Prefix: `base/${framework}/` })
+      .listObjectsV2({ Bucket: BUCKET_NAME, Prefix: `base/${frameworkname}/` })
       .promise();
+
     const fileContentPromises = fileData.Contents.map(async (file) => {
       const key = file.Key;
       const params = {
@@ -527,19 +537,27 @@ app.post("/newfolder/:frameworkname", async (req, res) => {
       };
     });
     const filesContent = await Promise.all(fileContentPromises);
-    copyNumber++;
 
     filesContent.map(async (file) => {
       const filename = getFileName(file.filename);
       const fileparams = {
         Bucket: BUCKET_NAME,
-        Key: `Code${copyNumber}/${filename}`,
+        Key: `${foldername}/${filename}`,
         Body: file.content,
       };
 
       await s3Client.putObject(fileparams).promise();
     });
-    res.status(200).send(`Code${copyNumber}`);
+
+    const user = await Users.findOne({username});
+    user.folders.push([foldername,frameworkname]);
+
+    await user.save();
+    res.status(200).send(`Folder created ${foldername}`);
+  }
+  else{
+    res.status(400).send("Use another foldername , foldername already exist");
+  }
   } catch (error) {
     console.log("Error in creating folder", error);
     res.send(500, "Error in creating new folder");
@@ -707,6 +725,65 @@ app.get("/extensions/:framework", async (req, res) => {
     res.send(500, "Error in fetching extensions");
   }
 });
+
+// signup
+app.post("/user/signup" , async (req,res)=>{
+     const data = req.body;
+     try{
+         const username = data.username;
+         const existingUsername = await Users.findOne({username});
+         if (existingUsername) return res.status(400).json({ message: 'User already exists' });  
+
+         const email = data.email;
+         const existingUseremail= await Users.findOne({ email });
+         if (existingUseremail) return res.status(400).json({ message: 'User already exists' });
+
+         const hashedPassword = await hashPassword(data.password);
+         data.password = hashedPassword;
+
+         await Users.create(data);
+         res.send(201,"User created successfully");
+     }catch(error){
+        res.send(500,"Error in user signup")
+     }
+})
+
+// login
+app.post("/user/login" , async(req,res)=>{
+    const data = req.body;
+    try{
+      const email = data.email;
+      const user = await Users.findOne({email});
+      if(!user){
+        return res.status(404).send("User doesn't exist , check email")
+      } 
+
+      const hashedPassword=  user.password;
+      const plainpassword = data.password;
+      
+      if(await comparePasswords(plainpassword,hashedPassword)){
+         const user  = await Users.findOne({email});
+         res.status(200).send(user.username);
+         return;
+      }
+      return res.status(400).send("wrong password");
+    }catch(error){
+       res.send(500,"Error in user login");
+    }
+})
+
+// Getting user folders
+app.get("/userFolders/:username",async(req,res)=>{
+    const username = req.params.username;
+    try{
+         const user = await Users.findOne({username});
+         if(!user) return res.status(404).send("No user found");
+
+         res.status(200).send(user.folders);
+    }catch(error){
+      res.status(500).json({ ERROR : error});
+    }
+})
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost : ${PORT}`);

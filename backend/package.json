@@ -12,8 +12,10 @@
   "description": "",
   "dependencies": {
     "aws-sdk": "^2.1692.0",
+    "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "mongoose": "^8.9.3",
     "node-pty-prebuilt-multiarch": "^0.10.1-pre.5",
     "nodemon": "^3.1.9",
     "socket.io": "^4.8.1"
